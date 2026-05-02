@@ -6,6 +6,7 @@ using Dalamud.Divination.Common.Api.Dalamud;
 using Dalamud.Divination.Common.Api.Ui.Window;
 using Dalamud.Divination.Common.Boilerplate;
 using Dalamud.Divination.Common.Boilerplate.Features;
+using Dalamud.Game.Chat;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
@@ -59,11 +60,13 @@ public class AetheryteLinkInChat : DivinationPlugin<AetheryteLinkInChat, PluginC
         return new PluginConfigWindow();
     }
 
-    private void OnChatReceived(XivChatType type, int timestamp, ref SeString sender, ref SeString message, ref bool isHandled)
+    private void OnChatReceived(IHandleableChatMessage message)
     {
         try
         {
-            AppendNearestAetheryteLink(ref message);
+            var payloadMessage = message.Message;
+            AppendNearestAetheryteLink(ref payloadMessage);
+            message.Message = payloadMessage;
         }
         catch (Exception exception)
         {
@@ -94,7 +97,7 @@ public class AetheryteLinkInChat : DivinationPlugin<AetheryteLinkInChat, PluginC
                 (uint)Enum.GetValues<GrandCompanyAetheryte>()[Config.PreferredGrandCompanyAetheryte],
                 message,
                 Dalamud.ObjectTable.LocalPlayer?.CurrentWorld.Value,
-                Dalamud.ClientState.TerritoryType);
+                (ushort)Dalamud.ClientState.TerritoryType);
         }
 
         var payloads = new List<Payload>();

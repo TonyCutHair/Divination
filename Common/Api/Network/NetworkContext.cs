@@ -1,8 +1,13 @@
 ﻿using System;
 using System.Linq;
-using Dalamud.Game.Network;
 
 namespace Dalamud.Divination.Common.Api.Network;
+
+public enum NetworkMessageDirection
+{
+    ZoneDown = 0,
+    ZoneUp = 1,
+}
 
 public record NetworkContext
 {

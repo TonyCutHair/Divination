@@ -1,5 +1,6 @@
 <Project>
     <PropertyGroup>
+        <DalamudLibPath Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(appdata)\XIVLauncherCN\addon\Hooks\dev\')">$(appdata)\XIVLauncherCN\addon\Hooks\dev\</DalamudLibPath>
         <TargetFramework>net10.0-windows</TargetFramework>
         <Platforms>x64</Platforms>
         <PlatformTarget>x64</PlatformTarget>
