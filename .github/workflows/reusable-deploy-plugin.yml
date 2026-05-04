@@ -6,32 +6,25 @@ on:
       plugin-name:
         required: true
         type: string
-      plugin-repository:
-        required: false
-        type: string
-        default: 'SlashNephy/divination-distrib'
-    secrets:
-      DEPLOY_GITHUB_TOKEN:
-        required: true
 
 permissions:
+  contents: write
   actions: read
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Plugin Repository
+      - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: '${{ inputs.plugin-repository }}'
-          token: '${{ secrets.DEPLOY_GITHUB_TOKEN }}'
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download Artifact (release)
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: '${{ inputs.plugin-name }}'
-          path: 'plugins/testing/${{ inputs.plugin-name }}'
+          path: 'dist/plugins/${{ inputs.plugin-name }}'
 
       - name: Download Artifact (gitversion.json)
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
@@ -46,42 +39,42 @@ jobs:
           rm -rf gitversion
           echo "value=$value" >> $GITHUB_OUTPUT
 
-      - name: Prepare commits.json
+      - name: Create zip
         run: |
-          curl \
-            -o plugins/testing/${{ inputs.plugin-name }}/commits.json \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "Authorization: token ${{ secrets.DEPLOY_GITHUB_TOKEN }}" \
-            https://api.github.com/repos/${{ github.repository }}/commits
+          cd dist/plugins/${{ inputs.plugin-name }}
+          zip -r latest.zip . -x "*.zip"
 
-      - name: Prepare event.json
-        run: echo "$EVENT_JSON" | jq -c > plugins/testing/${{ inputs.plugin-name }}/event.json
-        env:
-          EVENT_JSON: ${{ toJSON(github.event) }}
-
-      - name: Copy Artifact (stable)
-        if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+      - name: Update pluginmaster.json
         run: |
-          mkdir -p plugins/stable/${{ inputs.plugin-name }}
-          cp -rf plugins/testing/${{ inputs.plugin-name }}/* plugins/stable/${{ inputs.plugin-name }}
+          entries=()
+          base_url="https://github.com/${{ github.repository }}/raw/master/dist/plugins"
 
-      - name: Create Pull Request
-        id: create-pull-request
-        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
-        with:
-          token: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
-          commit-message: '⚙️ Deploy ${{ inputs.plugin-name }} ${{ steps.version.outputs.value }}'
-          author: StarryBlueSky-bot <97773209+StarryBlueSky-bot@users.noreply.github.com>
-          branch: ci/update-plugin-master
-          branch-suffix: random
-          delete-branch: true
-          title: '⚙️ Deploy ${{ inputs.plugin-name }} ${{ steps.version.outputs.value }}'
+          for dir in dist/plugins/*/; do
+            [ -d "$dir" ] || continue
+            name=$(basename "$dir")
+            json_file="$dir/$name.json"
+            [ -f "$json_file" ] || continue
 
-      - name: Automerge
-        if: steps.create-pull-request.outputs.pull-request-number
-        continue-on-error: true
-        uses: peter-evans/enable-pull-request-automerge@a660677d5469627102a1c1e11409dd063606628d # v3
-        with:
-          token: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
-          repository: ${{ inputs.plugin-repository }}
-          pull-request-number: ${{  steps.create-pull-request.outputs.pull-request-number }}
+            install_url="$base_url/$name/latest.zip"
+
+            entry=$(cat "$json_file" | jq \
+              --arg install "$install_url" \
+              --argjson ts "$(date +%s)" \
+              '. + {DownloadLinkInstall: $install, DownloadLinkUpdate: $install, DownloadLinkTesting: $install, LastUpdated: $ts, DownloadCount: 0}')
+
+            entries+=("$entry")
+          done
+
+          if [ ${#entries[@]} -eq 0 ]; then
+            echo "[]" > pluginmaster.json
+          else
+            printf '%s\n' "${entries[@]}" | jq -s '.' > pluginmaster.json
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dist/ pluginmaster.json
+          git diff --staged --quiet || git commit -m "⚙️ Deploy ${{ inputs.plugin-name }} ${{ steps.version.outputs.value }}"
+          git push

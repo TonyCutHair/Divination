@@ -35,8 +35,6 @@ jobs:
     uses: TonyCutHair/Divination/.github/workflows/reusable-deploy-plugin.yml@master
     with:
       plugin-name: AetheryteLinkInChat
-      plugin-repository: TonyCutHair/divination-distrib
-    secrets:
-      DEPLOY_GITHUB_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
     permissions:
+      contents: write
       actions: read
